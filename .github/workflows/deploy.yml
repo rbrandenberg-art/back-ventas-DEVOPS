@@ -38,3 +38,22 @@ jobs:
         cd Springboot-API-REST
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+    - name: Desplegar en EC2 Privada vía Proxy
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        proxy_host: ${{ secrets.EC2_PROXY_HOST }}
+        proxy_username: ec2-user
+        proxy_key: ${{ secrets.EC2_SSH_KEY }}
+        host: ${{ secrets.EC2_HOST }}
+        username: ec2-user
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+          
+          docker stop app-ventas || true
+          docker rm app-ventas || true
+          
+          docker pull ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          
+          docker run -d --name app-ventas -p 8080:8080 ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
